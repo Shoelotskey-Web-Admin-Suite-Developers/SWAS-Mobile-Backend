@@ -1,5 +1,6 @@
 import dotenv from "dotenv";
 import express, { Application, Request, Response } from "express";
+import cors from "cors";
 import http from "http";
 import mongoose from "mongoose";
 import { Server } from "socket.io";
@@ -33,6 +34,22 @@ const io = new Server(server, {
 
 // Middleware
 app.use(express.json());
+
+// CORS (place before route mounting)
+app.use(
+  cors({
+    origin: [
+      "http://localhost:8081", // Expo web dev URL
+      "http://localhost:19006", // Expo web alt
+      "http://localhost:3000", // If you ever use a different dev server
+    ],
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+    credentials: false,
+  })
+);
+// Express v5 no longer accepts '*' path strings; use a regex to match all for preflight
+app.options(/.*/, cors());
 
 // Basic route
 app.get("/", (req: Request, res: Response) => {
