@@ -10,27 +10,32 @@ export const createCustomer = async (req: Request, res: Response) => {
   try {
     const { cust_name, cust_bdate, cust_address, cust_contact, cust_email } = req.body;
 
-    if (!cust_name || !cust_bdate) {
-      return res.status(400).json({ error: "Name and birthdate are required" });
+    // Required: name, address, phone/contact
+    if (!cust_name || !cust_name.toString().trim()) {
+      return res.status(400).json({ error: "Customer name is required" });
     }
 
     if (!cust_address || !cust_address.toString().trim()) {
       return res.status(400).json({ error: "Address is required" });
     }
 
-    // ✅ Check if a customer with the same name and birthdate already exists
+    if (!cust_contact || !cust_contact.toString().trim()) {
+      return res.status(400).json({ error: "Contact number is required" });
+    }
+
+    // ✅ Check if a customer with the same name and contact already exists
     const existingCustomer = await Customer.findOne({
       cust_name: cust_name.trim(),
-      cust_bdate: new Date(cust_bdate),
+      cust_contact: cust_contact.trim(),
     });
 
     if (existingCustomer) {
-      return res.status(409).json({ 
-        error: "A customer with the same name and birthdate already exists." 
+      return res.status(409).json({
+        error: "A customer with the same name and contact already exists."
       });
     }
 
-    // Note: we no longer enforce email uniqueness. Multiple customers may share the same email.
+  // Note: we no longer enforce email uniqueness. Multiple customers may share the same email.
 
     // Generate cust_id with simple fixed prefix (no regex / legacy scan): CUST-0-<n>
     const prefix = "CUST-0-";
@@ -47,9 +52,9 @@ export const createCustomer = async (req: Request, res: Response) => {
     const customer = new Customer({
       cust_id: prefix + nextNumber,
       cust_name: cust_name.trim(),
-      cust_bdate: cust_bdate,
-      cust_address: cust_address,
-      cust_contact: cust_contact || null,
+      cust_bdate: cust_bdate || null,
+      cust_address: cust_address.trim(),
+      cust_contact: cust_contact.trim(),
       cust_email: cust_email || null,
       total_services: 0,
       total_expenditure: 0,
@@ -70,24 +75,19 @@ export const createCustomer = async (req: Request, res: Response) => {
 
 // Login Customer → returns JWT
 export const loginCustomer = async (req: Request, res: Response) => {
-  const { firstName, lastName, cust_bdate } = req.body;
+  const { firstName, lastName, contact } = req.body;
 
-  if (!firstName || !lastName || !cust_bdate) {
-    return res.status(400).json({ error: "Missing first name, last name, or birthdate" });
+  if (!firstName || !lastName || !contact) {
+    return res.status(400).json({ error: "Missing first name, last name, or contact" });
   }
 
   try {
-    const fullName = `${firstName.trim()} ${lastName.trim()}`;
-    const date = new Date(cust_bdate);
-
-    const startOfDay = new Date(date);
-    startOfDay.setHours(0, 0, 0, 0);
-    const endOfDay = new Date(date);
-    endOfDay.setHours(23, 59, 59, 999);
+    const fullName = `${firstName.toString().trim()} ${lastName.toString().trim()}`;
+    const phone = contact.toString().trim();
 
     const customer = await Customer.findOne({
       cust_name: fullName,
-      cust_bdate: { $gte: startOfDay, $lte: endOfDay },
+      cust_contact: phone,
     });
 
     if (!customer) {
@@ -95,17 +95,16 @@ export const loginCustomer = async (req: Request, res: Response) => {
     }
 
     const token = jwt.sign(
-  { cust_id: customer.cust_id, cust_name: customer.cust_name },
-  process.env.JWT_SECRET!,
-  { expiresIn: "2h" }
-);
+      { cust_id: customer.cust_id, cust_name: customer.cust_name },
+      process.env.JWT_SECRET!,
+      { expiresIn: "2h" }
+    );
 
-  // 👇 return both token and cust_id
-  return res.json({ 
-    message: "Login successful", 
-    token,
-    userId: customer.cust_id   // <-- add this
-  });
+    return res.json({
+      message: "Login successful",
+      token,
+      userId: customer.cust_id,
+    });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }

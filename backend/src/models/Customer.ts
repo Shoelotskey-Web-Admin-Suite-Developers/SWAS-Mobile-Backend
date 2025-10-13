@@ -5,9 +5,9 @@ export interface ICustomer extends Document {
   cust_id: string; /*CUST-01-00001 */
   cust_name: string;
   cust_bdate?: Date;
-  cust_address?: string;
+  cust_address: string;
   cust_email?: string;
-  cust_contact?: string;
+  cust_contact: string;
   total_services: number;
   total_expenditure: number;
 }
@@ -19,7 +19,7 @@ const CustomerSchema: Schema<ICustomer> = new Schema<ICustomer>(
   cust_bdate: { type: Date, default: null },
   cust_address: { type: String, required: true },
     cust_email: { type: String, default: null },
-    cust_contact: { type: String, default: null },
+    cust_contact: { type: String, required: true },
     total_services: { type: Number, default: 0 },
     total_expenditure: { type: Number, default: 0.0 },
   },
