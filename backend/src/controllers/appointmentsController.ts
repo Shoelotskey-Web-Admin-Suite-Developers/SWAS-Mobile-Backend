@@ -48,35 +48,25 @@ export const addAppointment = async (req: Request, res: Response) => {
       });
     }
 
-    // Check if timeslot is already full (max 3 appointments per branch/day/timeslot)
-    // Normalize the date to ensure consistent comparison (start of day)
-    const targetDate = new Date(date_for_inquiry);
-    targetDate.setHours(0, 0, 0, 0);
-    
-    const nextDay = new Date(targetDate);
-    nextDay.setDate(nextDay.getDate() + 1);
-    
-    const existingAppointments = await Appointment.countDocuments({
-      branch_id,
-      date_for_inquiry: { 
-        $gte: targetDate, 
-        $lt: nextDay 
-      },
-      time_start,
-      status: { $in: ["Pending", "Approved"] } // Count both pending and approved
-    });
-
-    console.log(`🔍 Timeslot check: branch=${branch_id}, date=${targetDate.toISOString().split('T')[0]}, time=${time_start}, existing=${existingAppointments}/3`);
-
-    if (existingAppointments >= 3) {
-      console.log(`❌ TIMESLOT FULL: Rejecting appointment for ${branch_id} on ${targetDate.toISOString().split('T')[0]} at ${time_start}`);
-      return res.status(400).json({ 
-        error: "This timeslot is already full. Please choose a different time or date." 
-      });
+    const visitDate = new Date(date_for_inquiry);
+    if (isNaN(visitDate.getTime())) {
+      return res.status(400).json({ error: "Invalid date_for_inquiry" });
     }
-
-    console.log(`✅ TIMESLOT AVAILABLE: Proceeding with appointment creation`);
-    
+    const yymmdd = `${visitDate.getFullYear().toString().slice(-2)}${String(visitDate.getMonth() + 1).padStart(2, "0")}${String(visitDate.getDate()).padStart(2, "0")}`;
+    let reference_no = "";
+    const chars = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const suffix = Array.from({ length: 4 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
+      const candidate = `VISIT-${yymmdd}-${suffix}`;
+      const exists = await Appointment.exists({ reference_no: candidate });
+      if (!exists) {
+        reference_no = candidate;
+        break;
+      }
+    }
+    if (!reference_no) {
+      return res.status(500).json({ error: "Failed to generate unique reference number" });
+    }
 
     // Auto-generate appointment_id
     const lastAppointment = await Appointment.findOne({}).sort({ _id: -1 }); // get last inserted
@@ -91,6 +81,7 @@ export const addAppointment = async (req: Request, res: Response) => {
       time_start,
       time_end,
       status: status || "Pending",
+      reference_no,
     });
 
     await newAppointment.save();
