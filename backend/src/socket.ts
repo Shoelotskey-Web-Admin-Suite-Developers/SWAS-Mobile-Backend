@@ -298,6 +298,8 @@ const WATCH_TARGETS: WatchTarget[] = [
       };
 
       emitToLineItemAndCustomer(io, "lineItemUpdated", payload, lineItemId, customerId);
+      
+      console.log(`📦 Line Item ${change.operationType}:`, lineItemId);
     },
   },
 ];
