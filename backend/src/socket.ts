@@ -146,6 +146,52 @@ const WATCH_TARGETS: WatchTarget[] = [
   {
     collectionName: "appointments",
     event: "appointmentUpdated",
+    handleChange: async (change, io) => {
+      let appointmentId: string | null = null;
+      let customerId: string | null = null;
+      let fullDocument: any = null;
+
+      const fullDocumentBeforeChange = (change as any).fullDocumentBeforeChange ?? null;
+
+      if (["insert", "update", "replace"].includes(change.operationType)) {
+        const doc = (change as any).fullDocument;
+        if (doc) {
+          appointmentId = doc.appointment_id || String(doc._id);
+          customerId = doc.cust_id;
+          fullDocument = doc;
+        }
+      } else if (change.operationType === "delete") {
+        if (change.documentKey?._id) {
+          appointmentId = String(change.documentKey._id);
+        }
+        if (fullDocumentBeforeChange) {
+          customerId = fullDocumentBeforeChange.cust_id;
+          appointmentId = fullDocumentBeforeChange.appointment_id || appointmentId;
+        }
+      }
+
+      if (!appointmentId) {
+        console.warn("⚠️ Unable to resolve appointment_id for appointments change:", change);
+        return;
+      }
+
+      const payload = {
+        appointmentId,
+        operationType: change.operationType,
+        documentKey: (change as any).documentKey,
+        fullDocument,
+        updateDescription: (change as any).updateDescription,
+        customerId,
+      };
+
+      io.emit("appointmentUpdated", payload);
+
+      if (customerId) {
+        io.to(`customer:${customerId}`).emit("appointmentUpdated", payload);
+      }
+
+      console.log(`📅 Appointment ${change.operationType}:`, appointmentId);
+    },
   },
   {
     collectionName: "announcements",
